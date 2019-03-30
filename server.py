@@ -1,57 +1,103 @@
-from BaseHTTPServer import BaseHTTPRequestHandler, HTTPServer
-import SocketServer
+from http.server import BaseHTTPRequestHandler, HTTPServer
+from urllib.parse import urlparse
 import json
-import cgi
+import time
+import os
 
-class Server(BaseHTTPRequestHandler):
-    def _set_headers(self):
-        self.send_response(200)
-        self.send_header('Content-type', 'application/json')
-        self.end_headers()
-        
-    def do_HEAD(self):
-        self._set_headers()
-        
-    # GET sends back a Hello world message
+def parse_url_query(query):
+    return dict(e.split('=') for e in query.split('&'))
+
+class Service:
+    def __init__(self):
+        self.drivers = {}
+
+    def process_get(self, query):
+        print("get ", query)
+        client = query['client']
+        if (client == 'driver'):
+            return self.__get_driver_data(query)
+
+        return None
+
+    def process_post(self, query, data):
+        print("process post", query, data)
+        success = False
+
+        client = query['client']
+        if (client == 'driver'):
+            success = self.__post_driver_data(query, data)
+
+        return success
+
+    def __get_driver_data(self, query):
+        driver_id = query['id']
+        desc = self.drivers.get(driver_id)
+        if desc is None:
+            return None
+
+        route = desc['route']
+        if not route:
+            return None
+
+        return route[-1]
+
+    def __post_driver_data(self, query, data):
+        driver_id = query['id']
+        pos = data['pos']
+        desc = self.__get_or_create_driver_desc(driver_id)
+        desc['route'].append([(time.time(), pos)])
+
+        print("route", desc["route"])
+
+        return True
+
+    def __get_or_create_driver_desc(self, driver_id):
+        desc = self.drivers.get(driver_id)
+        if desc is None:
+            desc = self.drivers[driver_id] = {'route': []}
+
+        return desc
+
+class RequestHandler(BaseHTTPRequestHandler):
+
     def do_GET(self):
-        print 'path ', self.path
-        self._set_headers()
-        self.wfile.write(json.dumps({'hello': 'world', 'received': 'ok'}))
-        
-    # POST echoes the message adding a JSON field
+        parsed_path = urlparse(self.path)
+        print('parsed_path ', parsed_path)
+        query = parse_url_query(parsed_path.query)
+
+        global g_service
+        data = g_service.process_get(query)
+
+        self.send_response(200)
+        self.end_headers()
+        self.wfile.write(json.dumps({
+            'result': data,
+        }).encode())
+        return
+
     def do_POST(self):
-        ctype, pdict = cgi.parse_header(self.headers.getheader('content-type'))
-        print 'post pdict ', pdict
-        
-        # refuse to receive non-json content
-        if ctype != 'application/json':
-            self.send_response(400)
-            self.end_headers()
-            return
-            
-        # read the message and convert it into a python dictionary
-        length = int(self.headers.getheader('content-length'))
-        message = json.loads(self.rfile.read(length))
-        
-        # add a property to the object, just to mess with data
-        message['received'] = 'ok'
-        
-        # send the message back
-        self._set_headers()
-        self.wfile.write(json.dumps(message))
-        
-def run(server_class=HTTPServer, handler_class=Server, port=8008):
-    server_address = ('', port)
-    httpd = server_class(server_address, handler_class)
-    
-    print 'Starting httpd on port %d...' % port
-    httpd.serve_forever()
-    
-if __name__ == "__main__":
-    from sys import argv
-    
-    if len(argv) == 2:
-        run(port=int(argv[1]))
-    else:
-        run()
-        
+        print("self.headers ", dir(self.headers))
+        content_len = int(self.headers.get('content-length'))
+        post_body = self.rfile.read(content_len)
+        print('post_body ', post_body)
+        data = json.loads(post_body)
+        print("data ", data)
+        parsed_path = urlparse(self.path)
+        query = parse_url_query(parsed_path.query)
+        print("query ", query)
+
+        global g_service
+        success = g_service.process_post(query, data)
+
+        self.send_response(200)
+        self.end_headers()
+        self.wfile.write(json.dumps({
+            'result': success,
+        }).encode())
+        return
+
+if __name__ == '__main__':
+    g_service = Service()
+    server = HTTPServer(('localhost', 8000), RequestHandler)
+    print('Starting server at http://localhost:8000')
+    server.serve_forever()
