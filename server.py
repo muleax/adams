@@ -98,6 +98,6 @@ class RequestHandler(BaseHTTPRequestHandler):
 
 if __name__ == '__main__':
     g_service = Service()
-    server = HTTPServer(('localhost', 8000), RequestHandler)
-    print('Starting server at http://localhost:8000')
+    server = HTTPServer(('0.0.0.0', 8000), RequestHandler)
+    print('Starting server at http://0.0.0.0:8000')
     server.serve_forever()
