@@ -55,13 +55,16 @@
 
       var url = "http://185.66.71.18:8000?client=driver&id=0";
       var xhr = new XMLHttpRequest();
-      var driver_pos = [0, 0]
+      var c
 
       xhr.onload = function() {
           var text = xhr.responseText;
           res = JSON.parse(text);
           if (res.result != null) {
             driver_pos = res.result;
+          }
+          else {
+            driver_pos = [0, 0];
           }
 
           //alert('Response from CORS request to ' + url + ': ' + text);
