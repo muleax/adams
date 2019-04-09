@@ -37,6 +37,9 @@ class Service:
         if desc is None:
             return None
 
+        if time.time() - desc['time'] > 30.0:
+            return None
+
         route = desc['route']
         if not route:
             return None
@@ -48,13 +51,17 @@ class Service:
         pos = data['pos']
         desc = self.__get_or_create_driver_desc(driver_id)
         desc['route'] = (float(pos[0]), float(pos[1]))
+        desc['time'] = time.time()
 
         return True
 
     def __get_or_create_driver_desc(self, driver_id):
         desc = self.drivers.get(driver_id)
         if desc is None:
-            desc = self.drivers[driver_id] = {'route': None}
+            desc = self.drivers[driver_id] = {
+                'route': None,
+                'time': 0
+            }
 
         return desc
 
